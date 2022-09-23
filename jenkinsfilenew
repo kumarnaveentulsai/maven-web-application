@@ -1,0 +1,53 @@
+pipeline{
+
+agent any 
+
+parameters {
+  choice choices: ['master', 'dev', 'qa'], name: 'branchname'
+}
+
+tools{
+maven "maven 3.8.6"
+}
+triggers {
+  pollSCM '* * * * *'
+}
+options {
+  buildDiscarder logRotator(artifactDaysToKeepStr: '', artifactNumToKeepStr: '5', daysToKeepStr: '', numToKeepStr: '5')
+}
+
+
+
+stages{
+stage(codecheckout){
+steps{
+ git branch:"${params.branchname}", git credentialsId: 'a9f3eb10-0ab8-4628-8e70-fd1d3545e889', url: ''
+}
+}
+stage('bulding the code'){
+
+steps{
+sh "mvn clean package"
+}
+}
+stage('build the image'){
+steps{
+sh "docker build -t naveenkuamr/dcimage:${BUILD_NUMBER} ."
+}
+}
+stage('login and oush the image'){
+steps{
+sh "docker login -u naveenkuamr -p 123456789" 
+sh "docker push naveenkuamr/dcimage:${BUILD_NUMBER}"
+}
+}
+stage('running the to container'){
+steps{
+sshagent(['c300ea02-62c8-42d8-896b-989f591cffac']){
+     sh "ssh -o StrictHostKeyChecking=no ubuntu@65.2.10.0 docker rm -f dcimagecon || true"
+     sh "ssh -o StrictHostKeyChecking=no ubuntu@65.2.10.0 docker run -d -p 4480:8080 --name dcimagecon naveenkuamr/dcimage:${BUILD_NUMBER}"
+}
+}
+}
+}
+}
